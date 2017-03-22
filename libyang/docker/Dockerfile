@@ -2,15 +2,6 @@ FROM sysrepo/sysrepo-netopeer2:latest
 
 MAINTAINER mislav.novakovic@sartura.hr
 
-# add static build to libyang
-RUN \
-      cd /opt/dev/libyang && \
-      cd build && \
-      cmake -DSTATIC=true .. && \
-      make -j2 && \
-      make install && \
-      ldconfig 
-
 # install wget
 RUN \
       apt-get install -y wget
@@ -28,3 +19,13 @@ ENV PATH $PATH:$GOROOT/bin
 # get go-netconf
 RUN \
       go get github.com/sartura/go-netconf/netconf
+
+
+# add static build to libyang
+RUN \
+      cd /opt/dev/libyang && \
+      cd build && \
+      cmake -DSTATIC=true .. && \
+      make -j2 && \
+      make install && \
+      ldconfig 
