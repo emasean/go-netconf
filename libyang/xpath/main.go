@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 	"unsafe"
 
 	"golang.org/x/crypto/ssh"
 
+	"encoding/json"
 	"encoding/xml"
 
 	"github.com/sartura/go-netconf/netconf"
@@ -99,7 +101,7 @@ func getLastNonLeafNode(ctx *C.struct_ly_ctx, xpath string) *C.struct_lyd_node {
 	return node
 }
 
-func netconfOperation(s *netconf.Session, ctx *C.struct_ly_ctx, xpath string, value string) error {
+func netconfOperation(s *netconf.Session, ctx *C.struct_ly_ctx, xpath string, value string, datastore string) error {
 
 	var operation int
 	if "" == value {
@@ -130,7 +132,7 @@ func netconfOperation(s *netconf.Session, ctx *C.struct_ly_ctx, xpath string, va
 	if operation == C.LYD_OPT_GET {
 		netconfXML = "<get><filter type=\"subtree\">" + C.GoString(xpathXML) + "</filter></get>"
 	} else {
-		netconfXML = "<edit-config xmlns:nc='urn:ietf:params:xml:ns:netconf:base:1.0'><target><" + "running" + "/></target><config>" + C.GoString(xpathXML) + "</config></edit-config>"
+		netconfXML = "<edit-config xmlns:nc='urn:ietf:params:xml:ns:netconf:base:1.0'><target><" + datastore + "/></target><config>" + C.GoString(xpathXML) + "</config></edit-config>"
 	}
 
 	reply, err := s.Exec(netconf.RawMethod(netconfXML))
@@ -250,7 +252,34 @@ func GoErrorCallback(level C.LY_LOG_LEVEL, msg *C.char, path *C.char) {
 	return
 }
 
+type Config struct {
+	Username  string `json:"username"`
+	Password  string `json:"password"`
+	Ip        string `json:"ip"`
+	Port      string `json:"port"`
+	Datastore string `json:"datastore"`
+}
+
+func LoadConfiguration(file string) Config {
+	var config Config
+	configFile, err := os.Open(file)
+	defer configFile.Close()
+	if err != nil {
+		fmt.Println(err.Error())
+	}
+	jsonParser := json.NewDecoder(configFile)
+	jsonParser.Decode(&config)
+	return config
+}
+
 func main() {
+
+	dir, err := filepath.Abs(filepath.Dir(os.Args[0]))
+	if err != nil {
+		log.Fatal(err)
+	}
+	config := LoadConfiguration(dir + "/config.json")
+
 	if len(os.Args) < 2 {
 		log.Fatal("please enter xpath")
 	}
@@ -271,11 +300,11 @@ func main() {
 		Config: ssh.Config{
 			Ciphers: []string{"aes128-cbc", "hmac-sha1"},
 		},
-		User:            "root",
-		Auth:            []ssh.AuthMethod{ssh.Password("root")},
+		User:            config.Username,
+		Auth:            []ssh.AuthMethod{ssh.Password(config.Password)},
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 	}
-	s, err := netconf.DialSSH("0.0.0.0:830", sshConfig)
+	s, err := netconf.DialSSH(config.Ip+":"+config.Port, sshConfig)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -288,7 +317,7 @@ func main() {
 		s = nil
 		return
 	}
-	err = netconfOperation(s, ctx, xpath, value)
+	err = netconfOperation(s, ctx, xpath, value, config.Datastore)
 	if err != nil {
 		println("ERROR: ", err.Error())
 	}
