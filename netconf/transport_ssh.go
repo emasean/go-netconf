@@ -98,17 +98,17 @@ func (t *TransportSSH) DialWithSOCKS5Proxy(proxyAddress string, auth *proxy.Auth
 
 	dialer, err := proxy.SOCKS5("tcp", proxyAddress, auth, proxy.Direct)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	conn, err := dialer.Dial("tcp", target)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	c, chans, reqs, err := ssh.NewClientConn(conn, target, config)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	t.sshClient = ssh.NewClient(c, chans, reqs)
