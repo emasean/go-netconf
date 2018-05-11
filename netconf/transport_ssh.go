@@ -200,9 +200,9 @@ func DialSSHTimeout(target string, config *ssh.ClientConfig, timeout time.Durati
 
 // DialSSH creates a new NETCONF session using a SSH Transport.
 // See TransportSSH.Dial for arguments.
-func DialSSHWithSOCKS5Proxy(proxy, auth *proxy.Auth, target string, config *ssh.ClientConfig) (*Session, error) {
+func DialSSHWithSOCKS5Proxy(proxyAddress string, auth *proxy.Auth, target string, config *ssh.ClientConfig) (*Session, error) {
 	var t TransportSSH
-	err := t.DialWithSOCKS5Proxy(proxy, auth, target, config)
+	err := t.DialWithSOCKS5Proxy(proxyAddress, auth, target, config)
 	if err != nil {
 		return nil, err
 	}
