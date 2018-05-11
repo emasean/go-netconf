@@ -51,6 +51,26 @@ type RPCReply struct {
 	RawReply string     `xml:"-"`
 }
 
+func (r *RPCReply) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
+	// make a new type to prevent recurision, but be exported to make
+	// encoding/xml happy.
+	type Reply RPCReply
+	reply := struct {
+		Reply
+		Ok *struct{} `xml:"ok"`
+	}{}
+
+	err := d.DecodeElement(&reply, &start)
+	if err != nil {
+		return err
+	}
+
+	*r = (RPCReply)(reply.Reply)
+	// If `ok` doesn't exist it will be nil
+	r.Ok = reply.Ok != nil
+	return nil
+}
+
 // RPCError defines an error reply to a RPC request
 type RPCError struct {
 	Type     string `xml:"error-type"`

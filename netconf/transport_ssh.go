@@ -12,6 +12,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
+	"golang.org/x/net/proxy"
 )
 
 const (
@@ -66,6 +67,51 @@ func (t *TransportSSH) Dial(target string, config *ssh.ClientConfig) error {
 	if err != nil {
 		return err
 	}
+
+	err = t.setupSession()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// DialWithSOCKS5Proxy connects and establishes SSH sessions
+//
+// proxyAddress must specify a port with the following format <host>:<port> (e.g 172.16.1.1:8080)
+//
+// auth takes a proxy.Auth which contains username and password
+//
+// target can be an IP address (e.g.) 172.16.1.1 which utlizes the default
+// NETCONF over SSH port of 830.  Target can also specify a port with the
+// following format <host>:<port> (e.g 172.16.1.1:22)
+//
+// config takes a ssh.ClientConfig connection. See documentation for
+// go.crypto/ssh for documenation.  There is a helper function SSHConfigPassword
+// thar returns a ssh.ClientConfig for simple username/password authentication
+func (t *TransportSSH) DialWithSOCKS5Proxy(proxyAddress string, auth *proxy.Auth, target string, config *ssh.ClientConfig) error {
+	if !strings.Contains(target, ":") {
+		target = fmt.Sprintf("%s:%d", target, sshDefaultPort)
+	}
+
+	var err error
+
+	dialer, err := proxy.SOCKS5("tcp", proxyAddress, auth, proxy.Direct)
+	if err != nil {
+		return nil, err
+	}
+
+	conn, err := dialer.Dial("tcp", target)
+	if err != nil {
+		return nil, err
+	}
+
+	c, chans, reqs, err := ssh.NewClientConn(conn, target, config)
+	if err != nil {
+		return nil, err
+	}
+
+	t.sshClient = ssh.NewClient(c, chans, reqs)
 
 	err = t.setupSession()
 	if err != nil {
@@ -150,6 +196,17 @@ func DialSSHTimeout(target string, config *ssh.ClientConfig, timeout time.Durati
 	}()
 
 	return NewSession(t), nil
+}
+
+// DialSSH creates a new NETCONF session using a SSH Transport.
+// See TransportSSH.Dial for arguments.
+func DialSSHWithSOCKS5Proxy(proxy, auth *proxy.Auth, target string, config *ssh.ClientConfig) (*Session, error) {
+	var t TransportSSH
+	err := t.DialWithSOCKS5Proxy(proxy, auth, target, config)
+	if err != nil {
+		return nil, err
+	}
+	return NewSession(&t), nil
 }
 
 // SSHConfigPassword is a convenience function that takes a username and password
